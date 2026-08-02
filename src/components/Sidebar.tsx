@@ -70,7 +70,7 @@ const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOp
             </div>
             <div>
               <span className={`font-semibold text-base tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Casa Nova
+                Nestly
               </span>
               <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Planejamento</p>
             </div>

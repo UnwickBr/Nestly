@@ -42,7 +42,7 @@ const Auth: FC = () => {
           <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30 mb-3">
             <Home size={22} color="white" />
           </div>
-          <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Casa Nova</h1>
+          <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Nestly</h1>
           <p className={`text-xs mt-0.5 ${muted}`}>Planeje sua casa com quem você ama</p>
         </div>
 

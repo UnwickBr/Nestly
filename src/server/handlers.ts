@@ -9,8 +9,8 @@ import {
   getReceivedInvites,
   getSentInvites,
   resolveInvite,
-} from './db';
-import { clearSessionCookieHeader, getSessionUserId, hashPassword, sessionCookieHeader, verifyPassword } from './auth';
+} from './db.js';
+import { clearSessionCookieHeader, getSessionUserId, hashPassword, sessionCookieHeader, verifyPassword } from './auth.js';
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);
