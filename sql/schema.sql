@@ -62,3 +62,14 @@ create table if not exists activities (
 
 create index if not exists idx_items_household on items (household_id);
 create index if not exists idx_activities_household_created on activities (household_id, created_at desc);
+
+create table if not exists comments (
+  id uuid primary key,
+  item_id uuid not null references items(id) on delete cascade,
+  household_id uuid not null references households(id),
+  user_name text not null,
+  text text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_comments_item_created on comments (item_id, created_at);

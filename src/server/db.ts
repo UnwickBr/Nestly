@@ -59,6 +59,15 @@ export interface DbItem {
   updatedAt: string;
 }
 
+export interface DbComment {
+  id: string;
+  itemId: string;
+  householdId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface DbActivity {
   id: string;
   householdId: string;
@@ -124,6 +133,17 @@ function toActivity(row: any): DbActivity {
     userName: row.user_name,
     action: row.action,
     itemName: row.item_name,
+    createdAt: row.created_at,
+  };
+}
+
+function toComment(row: any): DbComment {
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    householdId: row.household_id,
+    userName: row.user_name,
+    text: row.text,
     createdAt: row.created_at,
   };
 }
@@ -259,6 +279,37 @@ export async function createItem(input: NewItemInput): Promise<DbItem> {
   return toItem(rows[0]);
 }
 
+export interface EditItemInput {
+  name: string;
+  category: string;
+  priority: string;
+  quantity: number;
+  plannedPrice: number;
+  paidPrice: number | null;
+  store: string;
+  link: string;
+  notes: string;
+}
+
+export async function updateItem(id: string, input: EditItemInput): Promise<DbItem> {
+  const rows = await sql`
+    update items set
+      name = ${input.name},
+      category = ${input.category},
+      priority = ${input.priority},
+      quantity = ${input.quantity},
+      planned_price = ${input.plannedPrice},
+      paid_price = ${input.paidPrice},
+      store = ${input.store},
+      link = ${input.link},
+      notes = ${input.notes},
+      updated_at = now()
+    where id = ${id}
+    returning *
+  `;
+  return toItem(rows[0]);
+}
+
 export async function toggleItemFavorite(id: string): Promise<DbItem> {
   const rows = await sql`update items set is_favorite = not is_favorite, updated_at = now() where id = ${id} returning *`;
   return toItem(rows[0]);
@@ -291,4 +342,19 @@ export async function logActivity(householdId: string, userName: string, action:
 export async function getRecentActivities(householdId: string, limit: number): Promise<DbActivity[]> {
   const rows = await sql`select * from activities where household_id = ${householdId} order by created_at desc limit ${limit}`;
   return rows.map(toActivity);
+}
+
+export async function getCommentsForItem(itemId: string): Promise<DbComment[]> {
+  const rows = await sql`select * from comments where item_id = ${itemId} order by created_at asc`;
+  return rows.map(toComment);
+}
+
+export async function addComment(input: { itemId: string; householdId: string; userName: string; text: string }): Promise<DbComment> {
+  const id = randomUUID();
+  const rows = await sql`
+    insert into comments (id, item_id, household_id, user_name, text)
+    values (${id}, ${input.itemId}, ${input.householdId}, ${input.userName}, ${input.text})
+    returning *
+  `;
+  return toComment(rows[0]);
 }

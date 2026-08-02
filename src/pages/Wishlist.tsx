@@ -1,21 +1,17 @@
 import { useState, type FC } from 'react';
-import { Heart, ArrowRight, Plus, Sparkles } from 'lucide-react';
+import { Heart, ArrowRight, Plus, Sparkles, Edit3 } from 'lucide-react';
 import { type Item } from '../data/mockData';
 import { useItems } from '../context/ItemsContext';
+import { avatarColor } from '../lib/format';
 
 interface WishlistProps {
   darkMode: boolean;
   onOpenDetail: (item: Item) => void;
   onAddItem: () => void;
+  onEditItem: (item: Item) => void;
 }
 
-const AVATAR_COLORS = ['bg-blue-500', 'bg-pink-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500'];
-function avatarColor(name: string): string {
-  const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
-  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
-}
-
-const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail, onAddItem }) => {
+const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail, onAddItem, onEditItem }) => {
   const { items: allItems, moveToShoppingList } = useItems();
   const items = allItems.filter(i => i.isWishlist);
   const [moved, setMoved] = useState<string[]>([]);
@@ -74,12 +70,20 @@ const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail, onAddItem }) => {
                       {item.plannedPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </p>
                   </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); handleMove(item.id); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-all hover:gap-2"
-                  >
-                    Mover <ArrowRight size={13} />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={e => { e.stopPropagation(); onEditItem(item); }}
+                      className={`p-2 rounded-xl transition-colors ${darkMode ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleMove(item.id); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-all hover:gap-2"
+                    >
+                      Mover <ArrowRight size={13} />
+                    </button>
+                  </div>
                 </div>
                 <div className={`flex items-center gap-2 mt-3 pt-3 border-t text-xs ${darkMode ? 'border-white/10 text-gray-500' : 'border-white/50 text-gray-400'}`}>
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold ${avatarColor(item.addedBy)}`}>

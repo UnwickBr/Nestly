@@ -15,11 +15,24 @@ interface NewItemInput {
   description?: string;
 }
 
+interface EditItemInput {
+  name: string;
+  category: string;
+  priority: string;
+  quantity: number;
+  plannedPrice: number;
+  paidPrice: number | null;
+  store: string;
+  link: string;
+  notes: string;
+}
+
 interface ItemsContextValue {
   items: Item[];
   activities: Activity[];
   loading: boolean;
   addItem: (input: NewItemInput) => Promise<Item | null>;
+  updateItem: (id: string, input: EditItemInput) => Promise<Item | null>;
   toggleFavorite: (id: string) => Promise<void>;
   setStatus: (id: string, status: string) => Promise<void>;
   moveToShoppingList: (id: string) => Promise<void>;
@@ -72,6 +85,16 @@ export const ItemsProvider: FC<{ children: ReactNode }> = ({ children }) => {
     return data.item;
   }, [refresh]);
 
+  const updateItem = useCallback(async (id: string, input: EditItemInput) => {
+    const { ok, data } = await api<{ item: Item }>('/api/items/update', {
+      method: 'POST',
+      body: JSON.stringify({ id, ...input }),
+    });
+    if (!ok) return null;
+    await refresh();
+    return data.item;
+  }, [refresh]);
+
   const toggleFavorite = useCallback(async (id: string) => {
     setItems(prev => prev.map(i => i.id === id ? { ...i, isFavorite: !i.isFavorite } : i));
     await api('/api/items/toggle-favorite', { method: 'POST', body: JSON.stringify({ id }) });
@@ -97,7 +120,7 @@ export const ItemsProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, [refresh]);
 
   return (
-    <ItemsContext.Provider value={{ items, activities, loading, addItem, toggleFavorite, setStatus, moveToShoppingList, deleteItem, refresh }}>
+    <ItemsContext.Provider value={{ items, activities, loading, addItem, updateItem, toggleFavorite, setStatus, moveToShoppingList, deleteItem, refresh }}>
       {children}
     </ItemsContext.Provider>
   );

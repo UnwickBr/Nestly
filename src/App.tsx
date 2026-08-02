@@ -50,6 +50,7 @@ function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   const bg = darkMode ? 'glass-shell-dark' : 'glass-shell-light';
 
@@ -80,10 +81,10 @@ function AppShell() {
             <Dashboard darkMode={darkMode} onNavigate={setCurrentPage} />
           )}
           {currentPage === 'shopping' && (
-            <ShoppingList darkMode={darkMode} onOpenDetail={setSelectedItem} />
+            <ShoppingList darkMode={darkMode} onOpenDetail={setSelectedItem} onEditItem={setEditingItem} />
           )}
           {currentPage === 'wishlist' && (
-            <Wishlist darkMode={darkMode} onOpenDetail={setSelectedItem} onAddItem={() => setShowAddModal(true)} />
+            <Wishlist darkMode={darkMode} onOpenDetail={setSelectedItem} onAddItem={() => setShowAddModal(true)} onEditItem={setEditingItem} />
           )}
           {currentPage === 'stats' && (
             <Statistics darkMode={darkMode} />
@@ -100,12 +101,17 @@ function AppShell() {
           item={selectedItem}
           darkMode={darkMode}
           onClose={() => setSelectedItem(null)}
+          onEdit={() => { setEditingItem(selectedItem); setSelectedItem(null); }}
         />
       )}
 
-      {/* Add item modal */}
-      {showAddModal && (
-        <AddItemModal darkMode={darkMode} onClose={() => setShowAddModal(false)} />
+      {/* Add / edit item modal */}
+      {(showAddModal || editingItem) && (
+        <ItemFormModal
+          darkMode={darkMode}
+          editingItem={editingItem}
+          onClose={() => { setShowAddModal(false); setEditingItem(null); }}
+        />
       )}
     </div>
   );
@@ -140,10 +146,22 @@ function compressImageFile(file: File, maxDim = 640, quality = 0.75): Promise<st
   });
 }
 
-const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () => void }) => {
-  const { addItem } = useItems();
+const ItemFormModal = ({ darkMode, editingItem, onClose }: { darkMode: boolean; editingItem: Item | null; onClose: () => void }) => {
+  const { addItem, updateItem } = useItems();
+  const isEditing = editingItem != null;
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ name: '', category: '', priority: 'Média', plannedPrice: '', store: '', link: '', notes: '', isWishlist: false, image: '' });
+  const [form, setForm] = useState(() => editingItem ? {
+    name: editingItem.name,
+    category: editingItem.category,
+    priority: editingItem.priority,
+    plannedPrice: String(editingItem.plannedPrice),
+    paidPrice: editingItem.paidPrice != null ? String(editingItem.paidPrice) : '',
+    store: editingItem.store,
+    link: editingItem.link,
+    notes: editingItem.notes,
+    isWishlist: editingItem.isWishlist,
+    image: editingItem.image,
+  } : { name: '', category: '', priority: 'Média', plannedPrice: '', paidPrice: '', store: '', link: '', notes: '', isWishlist: false, image: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [fetchingImage, setFetchingImage] = useState(false);
@@ -190,24 +208,38 @@ const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () =>
     }
   };
 
+  const parsePrice = (v: string) => Number(v.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+
   const handleSubmit = async () => {
     if (!form.name || !form.category || submitting) return;
     setSubmitting(true);
-    const created = await addItem({
-      name: form.name,
-      category: form.category,
-      priority: form.priority,
-      quantity: 1,
-      plannedPrice: Number(form.plannedPrice.replace(/[^\d.,]/g, '').replace(',', '.')) || 0,
-      store: form.store,
-      link: form.link.trim(),
-      notes: form.notes,
-      isWishlist: form.isWishlist,
-      image: form.image || PLACEHOLDER_IMAGE,
-      description: '',
-    });
+    const result = isEditing && editingItem
+      ? await updateItem(editingItem.id, {
+          name: form.name,
+          category: form.category,
+          priority: form.priority,
+          quantity: editingItem.quantity,
+          plannedPrice: parsePrice(form.plannedPrice),
+          paidPrice: form.paidPrice.trim() ? parsePrice(form.paidPrice) : null,
+          store: form.store,
+          link: form.link.trim(),
+          notes: form.notes,
+        })
+      : await addItem({
+          name: form.name,
+          category: form.category,
+          priority: form.priority,
+          quantity: 1,
+          plannedPrice: parsePrice(form.plannedPrice),
+          store: form.store,
+          link: form.link.trim(),
+          notes: form.notes,
+          isWishlist: form.isWishlist,
+          image: form.image || PLACEHOLDER_IMAGE,
+          description: '',
+        });
     setSubmitting(false);
-    if (!created) return;
+    if (!result) return;
     setSubmitted(true);
     setTimeout(() => { setSubmitted(false); onClose(); }, 1200);
   };
@@ -216,8 +248,8 @@ const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () =>
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
       <div className={`w-full max-w-lg rounded-2xl shadow-2xl border ${darkMode ? 'bg-[#0c0c0e]/60 backdrop-blur-2xl border-white/10' : 'bg-white/70 backdrop-blur-2xl border-white/60'} animate-slide-in`}>
         <div className={`flex items-center justify-between p-5 border-b ${darkMode ? 'border-white/10' : 'border-white/60'}`}>
-          <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Adicionar Item</p>
-          <button onClick={onClose} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+          <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{isEditing ? 'Editar Item' : 'Adicionar Item'}</p>
+          <button onClick={onClose} className={`p-1.5 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}>
             <X size={18} />
           </button>
         </div>
@@ -227,7 +259,7 @@ const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () =>
             <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mb-4">
               <span className="text-2xl">✓</span>
             </div>
-            <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Item adicionado!</p>
+            <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{isEditing ? 'Alterações salvas!' : 'Item adicionado!'}</p>
           </div>
         ) : (
           <div className="p-5 space-y-4">
@@ -303,6 +335,12 @@ const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () =>
                 <label className={labelClass}>Valor Previsto</label>
                 <input className={inputClass} placeholder="R$ 0,00" value={form.plannedPrice} onChange={e => setForm({ ...form, plannedPrice: e.target.value })} />
               </div>
+              {isEditing && (
+                <div>
+                  <label className={labelClass}>Valor Pago</label>
+                  <input className={inputClass} placeholder="R$ 0,00" value={form.paidPrice} onChange={e => setForm({ ...form, paidPrice: e.target.value })} />
+                </div>
+              )}
               <div>
                 <label className={labelClass}>Loja</label>
                 <input className={inputClass} placeholder="Ex: Tok&Stok" value={form.store} onChange={e => setForm({ ...form, store: e.target.value })} />
@@ -313,17 +351,19 @@ const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () =>
               </div>
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer w-fit">
-              <input type="checkbox" checked={form.isWishlist} onChange={e => setForm({ ...form, isWishlist: e.target.checked })} className="accent-blue-600 w-4 h-4 rounded" />
-              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Adicionar à lista de desejos</span>
-            </label>
+            {!isEditing && (
+              <label className="flex items-center gap-2 cursor-pointer w-fit">
+                <input type="checkbox" checked={form.isWishlist} onChange={e => setForm({ ...form, isWishlist: e.target.checked })} className="accent-blue-600 w-4 h-4 rounded" />
+                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Adicionar à lista de desejos</span>
+              </label>
+            )}
 
             <div className="flex gap-3 pt-1">
               <button onClick={onClose} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors ${darkMode ? 'border-white/10 text-gray-300 hover:bg-white/10' : 'border-white/60 text-gray-700 hover:bg-white/40'}`}>
                 Cancelar
               </button>
               <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-60">
-                {submitting ? 'Adicionando...' : 'Adicionar Item'}
+                {submitting ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Adicionar Item'}
               </button>
             </div>
           </div>

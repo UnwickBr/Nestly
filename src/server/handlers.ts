@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
+  addComment,
   createInvite,
   createItem,
   createUser,
@@ -7,6 +8,7 @@ import {
   findPendingInviteBetween,
   findUserByEmail,
   findUserById,
+  getCommentsForItem,
   getHouseholdMembers,
   getItemById,
   getItemsForHousehold,
@@ -18,6 +20,7 @@ import {
   resolveInvite,
   setItemStatus,
   toggleItemFavorite,
+  updateItem,
   type DbItem,
 } from './db.js';
 import { clearSessionCookieHeader, getSessionUserId, hashPassword, sessionCookieHeader, verifyPassword } from './auth.js';
@@ -214,6 +217,30 @@ async function requireHouseholdItem(req: IncomingMessage, res: ServerResponse, i
   return { user, item };
 }
 
+export async function handleItemUpdate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readJsonBody(req);
+  const name = String(body.name ?? '').trim();
+  const category = String(body.category ?? '').trim();
+  if (!name || !category) return sendJson(res, 400, { error: 'Nome e categoria são obrigatórios.' });
+
+  const ctx = await requireHouseholdItem(req, res, String(body.id ?? ''));
+  if (!ctx) return;
+
+  const updated = await updateItem(ctx.item.id, {
+    name,
+    category,
+    priority: String(body.priority ?? ctx.item.priority),
+    quantity: Number(body.quantity) > 0 ? Number(body.quantity) : ctx.item.quantity,
+    plannedPrice: Number(body.plannedPrice) || 0,
+    paidPrice: body.paidPrice === '' || body.paidPrice == null ? null : Number(body.paidPrice),
+    store: String(body.store ?? ''),
+    link: String(body.link ?? ''),
+    notes: String(body.notes ?? ''),
+  });
+  await logActivity(ctx.user.householdId, ctx.user.name, 'editou', updated.name);
+  sendJson(res, 200, { item: publicItem(updated) });
+}
+
 export async function handleItemToggleFavorite(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readJsonBody(req);
   const ctx = await requireHouseholdItem(req, res, String(body.id ?? ''));
@@ -257,6 +284,30 @@ export async function handleActivitiesList(req: IncomingMessage, res: ServerResp
   sendJson(res, 200, {
     activities: activities.map(a => ({ id: a.id, user: a.userName, action: a.action, item: a.itemName, createdAt: a.createdAt })),
   });
+}
+
+export async function handleCommentsList(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const url = new URL(req.url ?? '', 'http://localhost');
+  const itemId = url.searchParams.get('itemId') ?? '';
+  const item = await getItemById(itemId);
+  if (!item || item.householdId !== user.householdId) return sendJson(res, 404, { error: 'Item não encontrado.' });
+  const comments = await getCommentsForItem(itemId);
+  sendJson(res, 200, {
+    comments: comments.map(c => ({ id: c.id, user: c.userName, text: c.text, createdAt: c.createdAt })),
+  });
+}
+
+export async function handleCommentAdd(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readJsonBody(req);
+  const itemId = String(body.itemId ?? '');
+  const text = String(body.text ?? '').trim();
+  const ctx = await requireHouseholdItem(req, res, itemId);
+  if (!ctx) return;
+  if (!text) return sendJson(res, 400, { error: 'Comentário vazio.' });
+  const comment = await addComment({ itemId, householdId: ctx.user.householdId, userName: ctx.user.name, text });
+  sendJson(res, 200, { comment: { id: comment.id, user: comment.userName, text: comment.text, createdAt: comment.createdAt } });
 }
 
 function extractProductImage(html: string, baseUrl: string): string | null {

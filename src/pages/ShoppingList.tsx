@@ -9,6 +9,7 @@ import { useItems } from '../context/ItemsContext';
 interface ShoppingListProps {
   darkMode: boolean;
   onOpenDetail: (item: Item) => void;
+  onEditItem: (item: Item) => void;
 }
 
 type ViewMode = 'cards' | 'list' | 'grid';
@@ -28,7 +29,7 @@ const statusColors: Record<Status, string> = {
 
 const fmt = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
+const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail, onEditItem }) => {
   const { items: allItems, toggleFavorite, setStatus, deleteItem } = useItems();
   const items = allItems.filter(i => !i.isWishlist);
   const [view, setView] = useState<ViewMode>('cards');
@@ -171,7 +172,7 @@ const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
       {view === 'cards' && filtered.length > 0 && (
         <div className="space-y-3">
           {filtered.map(item => (
-            <ItemCard key={item.id} item={item} darkMode={darkMode} onFav={toggleFavorite} onBought={toggleBought} onDelete={() => setDeleteConfirm(item.id)} onClick={() => onOpenDetail(item)} />
+            <ItemCard key={item.id} item={item} darkMode={darkMode} onFav={toggleFavorite} onBought={toggleBought} onDelete={() => setDeleteConfirm(item.id)} onEdit={() => onEditItem(item)} onClick={() => onOpenDetail(item)} />
           ))}
         </div>
       )}
@@ -180,7 +181,7 @@ const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
       {view === 'grid' && filtered.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(item => (
-            <ItemGridCard key={item.id} item={item} darkMode={darkMode} onFav={toggleFavorite} onBought={toggleBought} onDelete={() => setDeleteConfirm(item.id)} onClick={() => onOpenDetail(item)} />
+            <ItemGridCard key={item.id} item={item} darkMode={darkMode} onFav={toggleFavorite} onBought={toggleBought} onDelete={() => setDeleteConfirm(item.id)} onEdit={() => onEditItem(item)} onClick={() => onOpenDetail(item)} />
           ))}
         </div>
       )}
@@ -218,6 +219,9 @@ const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
                       <button onClick={() => toggleFavorite(item.id)} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-500' : 'hover:bg-gray-100 text-gray-400'}`}>
                         {item.isFavorite ? <Star size={14} fill="currentColor" className="text-amber-500" /> : <StarOff size={14} />}
                       </button>
+                      <button onClick={() => onEditItem(item)} className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                        <Edit3 size={14} />
+                      </button>
                       <button onClick={() => setDeleteConfirm(item.id)} className={`p-1.5 rounded-lg transition-colors text-rose-500 ${darkMode ? 'hover:bg-rose-900/20' : 'hover:bg-rose-50'}`}>
                         <Trash2 size={14} />
                       </button>
@@ -253,10 +257,11 @@ interface CardProps {
   onFav: (id: string) => void;
   onBought: (id: string) => void;
   onDelete: () => void;
+  onEdit: () => void;
   onClick: () => void;
 }
 
-const ItemCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete, onClick }) => {
+const ItemCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete, onEdit, onClick }) => {
   const muted = darkMode ? 'text-gray-500' : 'text-gray-400';
   const bought = ['Comprado', 'Entregue', 'Montado'].includes(item.status);
   const savings = item.paidPrice != null ? item.plannedPrice - item.paidPrice : null;
@@ -309,6 +314,9 @@ const ItemCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete, on
         <button onClick={() => onFav(item.id)} className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}>
           {item.isFavorite ? <Star size={16} fill="currentColor" className="text-amber-400" /> : <Star size={16} className={muted} />}
         </button>
+        <button onClick={onEdit} className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-500' : 'hover:bg-gray-100 text-gray-400'}`}>
+          <Edit3 size={16} />
+        </button>
         <button onClick={onDelete} className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-rose-900/30 text-gray-600 hover:text-rose-400' : 'hover:bg-rose-50 text-gray-400 hover:text-rose-500'}`}>
           <Trash2 size={16} />
         </button>
@@ -317,7 +325,7 @@ const ItemCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete, on
   );
 };
 
-const ItemGridCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete, onClick }) => {
+const ItemGridCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete, onEdit, onClick }) => {
   const muted = darkMode ? 'text-gray-500' : 'text-gray-400';
   const bought = ['Comprado', 'Entregue', 'Montado'].includes(item.status);
 
@@ -352,6 +360,9 @@ const ItemGridCard: FC<CardProps> = ({ item, darkMode, onFav, onBought, onDelete
             className={`flex-1 py-1.5 rounded-xl text-xs font-medium transition-colors ${bought ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             {bought ? 'Comprado ✓' : 'Marcar'}
+          </button>
+          <button onClick={onEdit} className={`p-1.5 rounded-xl transition-colors ${darkMode ? 'bg-gray-800 text-gray-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+            <Edit3 size={14} />
           </button>
           <button onClick={onDelete} className={`p-1.5 rounded-xl transition-colors ${darkMode ? 'bg-gray-800 text-gray-500 hover:bg-rose-900/30 hover:text-rose-400' : 'bg-gray-100 text-gray-400 hover:bg-rose-50 hover:text-rose-500'}`}>
             <Trash2 size={14} />

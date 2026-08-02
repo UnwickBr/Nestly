@@ -29,7 +29,7 @@ const Navbar: FC<NavbarProps> = ({ currentPage, darkMode, onToggleDark, onOpenMo
       <div className="flex items-center gap-3">
         <button
           onClick={onOpenMobile}
-          className={`lg:hidden p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}
+          className={`lg:hidden p-2 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}
         >
           <Menu size={20} />
         </button>
@@ -41,13 +41,13 @@ const Navbar: FC<NavbarProps> = ({ currentPage, darkMode, onToggleDark, onOpenMo
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleDark}
-          className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}
+          className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         <button
           onClick={() => onNavigate('profile')}
-          className={`relative p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}
+          className={`relative p-2 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}
         >
           <Bell size={18} />
           {hasInvites && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />}

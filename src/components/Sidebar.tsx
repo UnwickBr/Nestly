@@ -78,7 +78,7 @@ const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOp
           </div>
           <button
             onClick={onCloseMobile}
-            className={`lg:hidden p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}
+            className={`lg:hidden p-1.5 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}
           >
             <X size={18} />
           </button>

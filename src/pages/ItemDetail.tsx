@@ -1,12 +1,21 @@
-import { useState, type FC } from 'react';
-import { X, Star, ExternalLink, Edit3, ChevronDown, Send, ArrowLeft } from 'lucide-react';
+import { useEffect, useState, type FC } from 'react';
+import { X, Star, ExternalLink, Edit3, ChevronDown, Send, ArrowLeft, Loader2 } from 'lucide-react';
 import { type Item, CATEGORIES } from '../data/mockData';
 import { useItems } from '../context/ItemsContext';
+import { avatarColor, timeAgo } from '../lib/format';
 
 interface ItemDetailProps {
   item: Item;
   darkMode: boolean;
   onClose: () => void;
+  onEdit: () => void;
+}
+
+interface Comment {
+  id: string;
+  user: string;
+  text: string;
+  createdAt: string;
 }
 
 const priorityColors: Record<string, string> = {
@@ -32,27 +41,48 @@ const mockHistory = [
   { date: '2024-02-15', event: 'Status alterado para Comprado', price: 3200 },
 ];
 
-const mockComments = [
-  { user: 'Ana', avatar: 'A', color: 'bg-pink-500', text: 'Encontrei no Tok&Stok com desconto de 8%! Vale a pena ir até lá conferir.', time: '2 dias atrás' },
-  { user: 'Você', avatar: 'V', color: 'bg-blue-500', text: 'Perfeito! Vou verificar se ainda tem estoque. Qual cor estava disponível?', time: '2 dias atrás' },
-  { user: 'Ana', avatar: 'A', color: 'bg-pink-500', text: 'Cinza antracite e azul marinho. Ambas bem bonitas. Prefiro o cinza para combinar com a parede.', time: '1 dia atrás' },
-];
-
-const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
+const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose, onEdit }) => {
   const { toggleFavorite } = useItems();
   const [comment, setComment] = useState('');
-  const [comments, setComments] = useState(mockComments);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(true);
+  const [sending, setSending] = useState(false);
   const [isFav, setIsFav] = useState(item.isFavorite);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingComments(true);
+    fetch(`/api/items/comments?itemId=${item.id}`, { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => { if (!cancelled) setComments(data.comments ?? []); })
+      .finally(() => { if (!cancelled) setLoadingComments(false); });
+    return () => { cancelled = true; };
+  }, [item.id]);
 
   const handleToggleFavorite = () => {
     setIsFav(!isFav);
     toggleFavorite(item.id);
   };
 
-  const sendComment = () => {
-    if (!comment.trim()) return;
-    setComments(prev => [...prev, { user: 'Você', avatar: 'V', color: 'bg-blue-500', text: comment, time: 'Agora' }]);
-    setComment('');
+  const sendComment = async () => {
+    const text = comment.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/items/comments/add', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: item.id, text }),
+      });
+      const data = await res.json();
+      if (res.ok && data.comment) {
+        setComments(prev => [...prev, data.comment]);
+        setComment('');
+      }
+    } finally {
+      setSending(false);
+    }
   };
 
   const savings = item.paidPrice != null ? item.plannedPrice - item.paidPrice : null;
@@ -67,13 +97,13 @@ const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
       <div className={`w-full max-w-2xl rounded-2xl shadow-2xl border ${darkMode ? 'bg-[#0c0c0e]/50 border-white/10' : 'bg-white/40 border-white/60'} backdrop-blur-2xl animate-slide-in mt-4 mb-8`}>
         {/* Header */}
         <div className={`flex items-center justify-between p-5 border-b ${darkMode ? 'border-white/10' : 'border-white/60'}`}>
-          <button onClick={onClose} className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}>
+          <button onClick={onClose} className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}>
             <ArrowLeft size={20} />
           </button>
           <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Detalhes do Item</p>
           <button
             onClick={handleToggleFavorite}
-            className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-white/40'}`}
+            className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20' : 'bg-white/60 border-white/70 hover:bg-white/90'}`}
           >
             <Star size={20} fill={isFav ? 'currentColor' : 'none'} className={isFav ? 'text-amber-400' : muted} />
           </button>
@@ -93,6 +123,12 @@ const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColors[item.status]}`}>{item.status}</span>
               </div>
             </div>
+            <button
+              onClick={onEdit}
+              className={`mt-3 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${darkMode ? 'bg-white/10 border-white/10 hover:bg-white/20 text-gray-200' : 'bg-white/60 border-white/70 hover:bg-white/90 text-gray-700'}`}
+            >
+              <Edit3 size={13} /> Editar item
+            </button>
           </div>
 
           {/* Info grid */}
@@ -174,13 +210,21 @@ const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
           <div className={card}>
             <h3 className={sectionTitle}>Comentários</h3>
             <div className="space-y-4 mb-4">
-              {comments.map((c, i) => (
-                <div key={i} className="flex gap-3">
-                  <div className={`w-8 h-8 rounded-full ${c.color} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>{c.avatar}</div>
+              {loadingComments ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 size={18} className={`animate-spin ${muted}`} />
+                </div>
+              ) : comments.length === 0 ? (
+                <p className={`text-sm text-center py-2 ${muted}`}>Nenhum comentário ainda. Comece a conversa!</p>
+              ) : comments.map(c => (
+                <div key={c.id} className="flex gap-3">
+                  <div className={`w-8 h-8 rounded-full ${avatarColor(c.user)} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
+                    {c.user.trim().charAt(0).toUpperCase()}
+                  </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-sm font-medium ${text}`}>{c.user}</span>
-                      <span className={`text-xs ${muted}`}>{c.time}</span>
+                      <span className={`text-xs ${muted}`}>{timeAgo(c.createdAt)}</span>
                     </div>
                     <p className={`text-sm leading-relaxed ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>{c.text}</p>
                   </div>
@@ -194,13 +238,15 @@ const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
                 value={comment}
                 onChange={e => setComment(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendComment()}
-                className={`flex-1 px-3 py-2 rounded-xl text-sm border backdrop-blur-md outline-none transition-colors ${darkMode ? 'bg-white/5 border-white/10 text-gray-200 focus:border-blue-400/60' : 'bg-white/40 border-white/60 text-gray-800 focus:border-blue-400'}`}
+                disabled={sending}
+                className={`flex-1 px-3 py-2 rounded-xl text-sm border backdrop-blur-md outline-none transition-colors disabled:opacity-60 ${darkMode ? 'bg-white/5 border-white/10 text-gray-200 focus:border-blue-400/60' : 'bg-white/40 border-white/60 text-gray-800 focus:border-blue-400'}`}
               />
               <button
                 onClick={sendComment}
-                className="px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                disabled={sending || !comment.trim()}
+                className="px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-60"
               >
-                <Send size={15} />
+                {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               </button>
             </div>
           </div>
