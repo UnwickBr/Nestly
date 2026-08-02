@@ -1,6 +1,7 @@
 import { useState, type FC } from 'react';
 import { X, Star, ExternalLink, Edit3, ChevronDown, Send, ArrowLeft } from 'lucide-react';
 import { type Item, CATEGORIES } from '../data/mockData';
+import { useItems } from '../context/ItemsContext';
 
 interface ItemDetailProps {
   item: Item;
@@ -38,9 +39,15 @@ const mockComments = [
 ];
 
 const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
+  const { toggleFavorite } = useItems();
   const [comment, setComment] = useState('');
   const [comments, setComments] = useState(mockComments);
   const [isFav, setIsFav] = useState(item.isFavorite);
+
+  const handleToggleFavorite = () => {
+    setIsFav(!isFav);
+    toggleFavorite(item.id);
+  };
 
   const sendComment = () => {
     if (!comment.trim()) return;
@@ -65,7 +72,7 @@ const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose }) => {
           </button>
           <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Detalhes do Item</p>
           <button
-            onClick={() => setIsFav(!isFav)}
+            onClick={handleToggleFavorite}
             className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-white/40'}`}
           >
             <Star size={20} fill={isFav ? 'currentColor' : 'none'} className={isFav ? 'text-amber-400' : muted} />

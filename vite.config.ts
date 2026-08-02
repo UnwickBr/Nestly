@@ -5,9 +5,16 @@ import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
 import {
+  handleActivitiesList,
   handleInviteAccept,
   handleInviteDecline,
   handleInviteSend,
+  handleItemCreate,
+  handleItemDelete,
+  handleItemMoveToList,
+  handleItemsList,
+  handleItemSetStatus,
+  handleItemToggleFavorite,
   handleLogin,
   handleLogout,
   handleMe,
@@ -387,6 +394,13 @@ function localApiPlugin(): Plugin {
     'POST /api/invites/send': handleInviteSend,
     'POST /api/invites/accept': handleInviteAccept,
     'POST /api/invites/decline': handleInviteDecline,
+    'GET /api/items': handleItemsList,
+    'POST /api/items/create': handleItemCreate,
+    'POST /api/items/toggle-favorite': handleItemToggleFavorite,
+    'POST /api/items/set-status': handleItemSetStatus,
+    'POST /api/items/move-to-list': handleItemMoveToList,
+    'POST /api/items/delete': handleItemDelete,
+    'GET /api/activities': handleActivitiesList,
   }
 
   return {

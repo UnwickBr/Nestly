@@ -1,33 +1,28 @@
 import { type FC } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend, LineChart, Line, Area, AreaChart,
+  PieChart, Pie, Legend, Area, AreaChart,
 } from 'recharts';
 import { TrendingDown, TrendingUp, Award, Target } from 'lucide-react';
-import { mockItems, CATEGORIES } from '../data/mockData';
+import { CATEGORIES, type Status } from '../data/mockData';
+import { useItems } from '../context/ItemsContext';
 
 interface StatsProps { darkMode: boolean; }
 
 const fmt = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-const monthlyData = [
-  { month: 'Jan', gasto: 7100, previsto: 8500 },
-  { month: 'Fev', gasto: 5150, previsto: 6000 },
-  { month: 'Mar', gasto: 2999, previsto: 3200 },
-  { month: 'Abr', gasto: 0, previsto: 4500 },
-  { month: 'Mai', gasto: 0, previsto: 3000 },
-  { month: 'Jun', gasto: 0, previsto: 2000 },
-];
-
-const progressData = [
-  { week: 'Sem 1', itens: 2 },
-  { week: 'Sem 2', itens: 4 },
-  { week: 'Sem 3', itens: 5 },
-  { week: 'Sem 4', itens: 7 },
-];
+const STATUS_ORDER: Status[] = ['Desejado', 'Pesquisando', 'Comprado', 'Entregue', 'Montado'];
+const STATUS_COLORS: Record<Status, string> = {
+  Desejado: '#9ca3af',
+  Pesquisando: '#3b82f6',
+  Comprado: '#22c55e',
+  Entregue: '#a855f7',
+  Montado: '#10b981',
+};
 
 const Statistics: FC<StatsProps> = ({ darkMode }) => {
-  const items = mockItems.filter(i => !i.isWishlist);
+  const { items: allItems } = useItems();
+  const items = allItems.filter(i => !i.isWishlist);
   const bought = items.filter(i => ['Comprado', 'Entregue', 'Montado'].includes(i.status));
   const totalSpent = bought.reduce((s, i) => s + (i.paidPrice ?? 0) * i.quantity, 0);
   const totalPlanned = items.reduce((s, i) => s + i.plannedPrice * i.quantity, 0);
@@ -41,6 +36,25 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
   }).filter(c => c.value > 0).sort((a, b) => b.value - a.value);
 
   const mostExpensive = [...bought].sort((a, b) => (b.paidPrice ?? 0) - (a.paidPrice ?? 0)).slice(0, 4);
+
+  // Real spend over time, derived from when each item was actually marked
+  // as bought (its last update), grouped by month.
+  const monthMap = new Map<string, { label: string; gasto: number }>();
+  for (const i of bought) {
+    if (i.paidPrice == null) continue;
+    const d = new Date(i.updatedAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('pt-BR', { month: 'short' });
+    const entry = monthMap.get(key) ?? { label, gasto: 0 };
+    entry.gasto += i.paidPrice * i.quantity;
+    monthMap.set(key, entry);
+  }
+  const monthlyData = [...monthMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+
+  const statusData = STATUS_ORDER.map(status => ({
+    status,
+    count: items.filter(i => i.status === status).length,
+  })).filter(s => s.count > 0);
 
   const muted = darkMode ? 'text-gray-500' : 'text-gray-400';
   const text = darkMode ? 'text-gray-200' : 'text-gray-800';
@@ -77,6 +91,9 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
       {/* Monthly chart */}
       <div className={card}>
         <h3 className={`text-sm font-semibold mb-5 ${text}`}>Gastos por Mês</h3>
+        {monthlyData.length === 0 ? (
+          <div className={`h-48 flex items-center justify-center ${muted} text-sm`}>Nenhum gasto registrado ainda</div>
+        ) : (
         <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
             <defs>
@@ -84,29 +101,15 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
                 <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
                 <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="colorPrevisto" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#27272e' : '#f1f5f9'} vertical={false} />
-            <XAxis dataKey="month" tick={{ fontSize: 12, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 12, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
-            <Tooltip formatter={(v: number, name: string) => [fmt(v), name === 'gasto' ? 'Gasto' : 'Previsto']} contentStyle={tooltipStyle} cursor={{ stroke: darkMode ? '#27272e' : '#e2e8f0' }} />
-            <Area type="monotone" dataKey="previsto" stroke="#8b5cf6" strokeWidth={2} fill="url(#colorPrevisto)" strokeDasharray="4 4" />
+            <Tooltip formatter={(v: number) => [fmt(v), 'Gasto']} contentStyle={tooltipStyle} cursor={{ stroke: darkMode ? '#27272e' : '#e2e8f0' }} />
             <Area type="monotone" dataKey="gasto" stroke="#3b82f6" strokeWidth={2} fill="url(#colorGasto)" />
           </AreaChart>
         </ResponsiveContainer>
-        <div className="flex items-center gap-6 mt-2">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <span className={`text-xs ${muted}`}>Gasto</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-0.5 bg-violet-500 border-dashed" />
-            <span className={`text-xs ${muted}`}>Previsto</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Category + Progress */}
@@ -131,18 +134,26 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
           )}
         </div>
 
-        {/* Progress over time */}
+        {/* Items by status */}
         <div className={card}>
-          <h3 className={`text-sm font-semibold mb-4 ${text}`}>Evolução do Progresso</h3>
+          <h3 className={`text-sm font-semibold mb-4 ${text}`}>Itens por Status</h3>
+          {statusData.length === 0 ? (
+            <div className={`h-[180px] flex items-center justify-center ${muted} text-sm`}>Nenhum item ainda</div>
+          ) : (
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={progressData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+            <BarChart data={statusData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#27272e' : '#f1f5f9'} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="status" tick={{ fontSize: 11, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: darkMode ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="itens" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={36} />
+              <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                {statusData.map(entry => (
+                  <Cell key={entry.status} fill={STATUS_COLORS[entry.status]} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
           <div className={`mt-4 p-3 rounded-xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-white/40 border-white/60'} flex items-center justify-between`}>
             <span className={`text-sm ${muted}`}>Conclusão atual</span>
             <div className="flex items-center gap-3">

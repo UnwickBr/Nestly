@@ -1,7 +1,7 @@
 import { type FC } from 'react';
 import { House, ShoppingCart, Heart, BarChart3, User, X, Home } from 'lucide-react';
-import { mockItems } from '../data/mockData';
 import type { AuthUser } from '../context/AuthContext';
+import { useItems } from '../context/ItemsContext';
 
 type Page = 'dashboard' | 'shopping' | 'wishlist' | 'stats' | 'profile';
 
@@ -30,7 +30,8 @@ function colorForId(id: string): string {
 }
 
 const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOpen, onCloseMobile, user, partner }) => {
-  const nonWishlist = mockItems.filter(i => !i.isWishlist);
+  const { items } = useItems();
+  const nonWishlist = items.filter(i => !i.isWishlist);
   const doneCount = nonWishlist.filter(i => ['Comprado', 'Entregue', 'Montado'].includes(i.status)).length;
   const totalCount = nonWishlist.length;
   const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;

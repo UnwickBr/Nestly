@@ -40,7 +40,7 @@ export interface Activity {
   user: string;
   action: string;
   item: string;
-  time: string;
+  createdAt: string;
 }
 
 export const CATEGORIES: { name: Category; icon: string; color: string }[] = [
@@ -58,8 +58,7 @@ export const CATEGORIES: { name: Category; icon: string; color: string }[] = [
   { name: 'Outros', icon: '📦', color: '#6b7280' },
 ];
 
-// Fresh install — no items yet. Real households now come from the auth
-// system (src/server) instead of hardcoded "Você"/"Ana" mock people.
-export const mockItems: Item[] = [];
-
-export const mockActivities: Activity[] = [];
+// Neutral gray placeholder — items added without a photo (there is no
+// upload backend yet) render this instead of a broken image icon.
+const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#e5e7eb"/></svg>`;
+export const PLACEHOLDER_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponent(PLACEHOLDER_SVG)}`;

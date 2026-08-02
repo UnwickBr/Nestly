@@ -9,6 +9,7 @@ import Statistics from './pages/Statistics';
 import Profile from './pages/Profile';
 import Auth from './pages/Auth';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ItemsProvider, useItems } from './context/ItemsContext';
 import { type Item } from './data/mockData';
 
 type Page = 'dashboard' | 'shopping' | 'wishlist' | 'stats' | 'profile';
@@ -35,7 +36,11 @@ function AuthGate() {
 
   if (status === 'guest') return <Auth />;
 
-  return <AppShell />;
+  return (
+    <ItemsProvider>
+      <AppShell />
+    </ItemsProvider>
+  );
 }
 
 function AppShell() {
@@ -78,7 +83,7 @@ function AppShell() {
             <ShoppingList darkMode={darkMode} onOpenDetail={setSelectedItem} />
           )}
           {currentPage === 'wishlist' && (
-            <Wishlist darkMode={darkMode} onOpenDetail={setSelectedItem} />
+            <Wishlist darkMode={darkMode} onOpenDetail={setSelectedItem} onAddItem={() => setShowAddModal(true)} />
           )}
           {currentPage === 'stats' && (
             <Statistics darkMode={darkMode} />
@@ -107,18 +112,36 @@ function AppShell() {
 }
 
 import { X, Upload } from 'lucide-react';
-import { CATEGORIES } from './data/mockData';
+import { CATEGORIES, PLACEHOLDER_IMAGE } from './data/mockData';
 
 const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () => void }) => {
-  const [form, setForm] = useState({ name: '', category: '', priority: 'Média', plannedPrice: '', store: '', notes: '' });
+  const { addItem } = useItems();
+  const [form, setForm] = useState({ name: '', category: '', priority: 'Média', plannedPrice: '', store: '', notes: '', isWishlist: false });
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const muted = darkMode ? 'text-gray-500' : 'text-gray-400';
   const inputClass = `w-full px-3 py-2.5 rounded-xl text-sm border outline-none transition-colors ${darkMode ? 'bg-white/5 backdrop-blur-md border-white/10 text-gray-200 focus:border-blue-400/60' : 'bg-white/40 backdrop-blur-md border-white/60 text-gray-800 focus:border-blue-400'}`;
   const labelClass = `text-xs font-medium block mb-1.5 ${muted}`;
 
-  const handleSubmit = () => {
-    if (!form.name || !form.category) return;
+  const handleSubmit = async () => {
+    if (!form.name || !form.category || submitting) return;
+    setSubmitting(true);
+    const created = await addItem({
+      name: form.name,
+      category: form.category,
+      priority: form.priority,
+      quantity: 1,
+      plannedPrice: Number(form.plannedPrice.replace(/[^\d.,]/g, '').replace(',', '.')) || 0,
+      store: form.store,
+      link: '',
+      notes: form.notes,
+      isWishlist: form.isWishlist,
+      image: PLACEHOLDER_IMAGE,
+      description: '',
+    });
+    setSubmitting(false);
+    if (!created) return;
     setSubmitted(true);
     setTimeout(() => { setSubmitted(false); onClose(); }, 1200);
   };
@@ -182,12 +205,17 @@ const AddItemModal = ({ darkMode, onClose }: { darkMode: boolean; onClose: () =>
               </div>
             </div>
 
+            <label className="flex items-center gap-2 cursor-pointer w-fit">
+              <input type="checkbox" checked={form.isWishlist} onChange={e => setForm({ ...form, isWishlist: e.target.checked })} className="accent-blue-600 w-4 h-4 rounded" />
+              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Adicionar à lista de desejos</span>
+            </label>
+
             <div className="flex gap-3 pt-1">
               <button onClick={onClose} className={`flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors ${darkMode ? 'border-white/10 text-gray-300 hover:bg-white/10' : 'border-white/60 text-gray-700 hover:bg-white/40'}`}>
                 Cancelar
               </button>
-              <button onClick={handleSubmit} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
-                Adicionar Item
+              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-60">
+                {submitting ? 'Adicionando...' : 'Adicionar Item'}
               </button>
             </div>
           </div>

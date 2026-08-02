@@ -3,7 +3,8 @@ import {
   Search, Filter, Grid3X3, List, LayoutGrid, Star, StarOff, Edit3, Trash2, CheckSquare, Square,
   ExternalLink, ChevronDown, X, SlidersHorizontal,
 } from 'lucide-react';
-import { mockItems as initialItems, CATEGORIES, type Item, type Category, type Priority, type Status } from '../data/mockData';
+import { CATEGORIES, type Item, type Category, type Priority, type Status } from '../data/mockData';
+import { useItems } from '../context/ItemsContext';
 
 interface ShoppingListProps {
   darkMode: boolean;
@@ -28,20 +29,25 @@ const statusColors: Record<Status, string> = {
 const fmt = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
-  const [items, setItems] = useState(initialItems.filter(i => !i.isWishlist));
+  const { items: allItems, toggleFavorite, setStatus, deleteItem } = useItems();
+  const items = allItems.filter(i => !i.isWishlist);
   const [view, setView] = useState<ViewMode>('cards');
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<Category | ''>('');
   const [filterPriority, setFilterPriority] = useState<Priority | ''>('');
   const [filterStatus, setFilterStatus] = useState<Status | ''>('');
-  const [filterAdded, setFilterAdded] = useState<'' | 'Você' | 'Ana'>('');
+  const [filterAdded, setFilterAdded] = useState('');
   const [filterFavorites, setFilterFavorites] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const toggleFavorite = (id: string) => setItems(prev => prev.map(i => i.id === id ? { ...i, isFavorite: !i.isFavorite } : i));
-  const toggleBought = (id: string) => setItems(prev => prev.map(i => i.id === id ? { ...i, status: i.status === 'Comprado' ? 'Pesquisando' : 'Comprado' } : i));
-  const deleteItem = (id: string) => { setItems(prev => prev.filter(i => i.id !== id)); setDeleteConfirm(null); };
+  const addedByOptions = [...new Set(items.map(i => i.addedBy))];
+  const toggleBought = (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    setStatus(id, item.status === 'Comprado' ? 'Pesquisando' : 'Comprado');
+  };
+  const handleDelete = (id: string) => { deleteItem(id); setDeleteConfirm(null); };
 
   const filtered = items.filter(item => {
     if (search && !item.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -133,10 +139,9 @@ const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
             </div>
             <div>
               <label className={`text-xs font-medium block mb-1.5 ${muted}`}>Adicionado por</label>
-              <select value={filterAdded} onChange={e => setFilterAdded(e.target.value as '' | 'Você' | 'Ana')} className={inputClass}>
+              <select value={filterAdded} onChange={e => setFilterAdded(e.target.value)} className={inputClass}>
                 <option value="">Todos</option>
-                <option value="Você">Você</option>
-                <option value="Ana">Ana</option>
+                {addedByOptions.map(name => <option key={name} value={name}>{name}</option>)}
               </select>
             </div>
           </div>
@@ -233,7 +238,7 @@ const ShoppingList: FC<ShoppingListProps> = ({ darkMode, onOpenDetail }) => {
             <p className={`text-sm ${muted} mb-5`}>Esta ação não pode ser desfeita.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-colors ${darkMode ? 'border-white/10 text-gray-300 hover:bg-white/10' : 'border-white/60 text-gray-700 hover:bg-white/40'}`}>Cancelar</button>
-              <button onClick={() => deleteItem(deleteConfirm)} className="flex-1 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors">Excluir</button>
+              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 py-2 rounded-xl bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 transition-colors">Excluir</button>
             </div>
           </div>
         </div>

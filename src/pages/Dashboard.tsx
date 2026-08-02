@@ -3,7 +3,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { ShoppingCart, CheckCircle, Clock, DollarSign, TrendingDown, TrendingUp, Star, ChevronRight } from 'lucide-react';
-import { mockItems, mockActivities, CATEGORIES } from '../data/mockData';
+import { CATEGORIES } from '../data/mockData';
+import { useItems } from '../context/ItemsContext';
 
 interface DashboardProps {
   darkMode: boolean;
@@ -11,7 +12,8 @@ interface DashboardProps {
 }
 
 const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
-  const items = mockItems.filter(i => !i.isWishlist);
+  const { items: allItems, activities } = useItems();
+  const items = allItems.filter(i => !i.isWishlist);
   const totalItems = items.length;
   const boughtItems = items.filter(i => ['Comprado', 'Entregue', 'Montado'].includes(i.status)).length;
   const pendingItems = totalItems - boughtItems;
@@ -35,6 +37,17 @@ const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
   const text = darkMode ? 'text-gray-200' : 'text-gray-800';
 
   const fmt = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const timeAgo = (iso: string) => {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return 'agora mesmo';
+    if (minutes < 60) return `${minutes} min atrás`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} ${hours === 1 ? 'hora' : 'horas'} atrás`;
+    const days = Math.floor(hours / 24);
+    return `${days} ${days === 1 ? 'dia' : 'dias'} atrás`;
+  };
 
   const summaryCards = [
     { label: 'Total de Itens', value: totalItems, icon: ShoppingCart, color: 'blue', bg: 'bg-blue-100 dark:bg-blue-900/30', iconColor: 'text-blue-600' },
@@ -185,14 +198,14 @@ const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
       {/* Recent Activities */}
       <div className={card}>
         <h3 className={`text-sm font-semibold mb-4 ${text}`}>Atividades Recentes</h3>
-        {mockActivities.length === 0 ? (
+        {activities.length === 0 ? (
           <p className={`text-sm text-center py-6 ${muted}`}>Nenhuma atividade ainda. Adicione seu primeiro item!</p>
         ) : (
         <div className="space-y-0.5">
-          {mockActivities.map((act, i) => (
+          {activities.map(act => (
             <div
               key={act.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-white/40'} ${i < mockActivities.length - 1 ? '' : ''}`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-white/40'}`}
             >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 bg-blue-500`}>
                 {act.user.trim().charAt(0).toUpperCase()}
@@ -203,7 +216,7 @@ const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
                   <span className="font-medium">{act.item}</span>
                 </p>
               </div>
-              <p className={`text-xs flex-shrink-0 ${muted}`}>{act.time}</p>
+              <p className={`text-xs flex-shrink-0 ${muted}`}>{timeAgo(act.createdAt)}</p>
             </div>
           ))}
         </div>

@@ -1,19 +1,28 @@
 import { useState, type FC } from 'react';
 import { Heart, ArrowRight, Plus, Sparkles } from 'lucide-react';
-import { mockItems, type Item } from '../data/mockData';
+import { type Item } from '../data/mockData';
+import { useItems } from '../context/ItemsContext';
 
 interface WishlistProps {
   darkMode: boolean;
   onOpenDetail: (item: Item) => void;
+  onAddItem: () => void;
 }
 
-const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail }) => {
-  const [items, setItems] = useState(mockItems.filter(i => i.isWishlist));
+const AVATAR_COLORS = ['bg-blue-500', 'bg-pink-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500'];
+function avatarColor(name: string): string {
+  const sum = [...name].reduce((s, c) => s + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
+
+const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail, onAddItem }) => {
+  const { items: allItems, moveToShoppingList } = useItems();
+  const items = allItems.filter(i => i.isWishlist);
   const [moved, setMoved] = useState<string[]>([]);
 
-  const moveToList = (id: string) => {
+  const handleMove = (id: string) => {
     setMoved(prev => [...prev, id]);
-    setTimeout(() => setItems(prev => prev.filter(i => i.id !== id)), 600);
+    moveToShoppingList(id);
   };
 
   const muted = darkMode ? 'text-gray-500' : 'text-gray-400';
@@ -33,7 +42,7 @@ const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail }) => {
           </div>
           <p className={`font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>Lista vazia!</p>
           <p className={`text-sm mt-1 ${muted}`}>Adicione itens de desejo para planejar o futuro.</p>
-          <button className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+          <button onClick={onAddItem} className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
             <Plus size={16} /> Adicionar item
           </button>
         </div>
@@ -66,15 +75,15 @@ const Wishlist: FC<WishlistProps> = ({ darkMode, onOpenDetail }) => {
                     </p>
                   </div>
                   <button
-                    onClick={e => { e.stopPropagation(); moveToList(item.id); }}
+                    onClick={e => { e.stopPropagation(); handleMove(item.id); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-all hover:gap-2"
                   >
                     Mover <ArrowRight size={13} />
                   </button>
                 </div>
                 <div className={`flex items-center gap-2 mt-3 pt-3 border-t text-xs ${darkMode ? 'border-white/10 text-gray-500' : 'border-white/50 text-gray-400'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold ${item.addedBy === 'Ana' ? 'bg-pink-500' : 'bg-blue-500'}`}>
-                    {item.addedBy === 'Ana' ? 'A' : 'V'}
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold ${avatarColor(item.addedBy)}`}>
+                    {item.addedBy.trim().charAt(0).toUpperCase()}
                   </div>
                   Adicionado por {item.addedBy}
                 </div>

@@ -37,6 +37,37 @@ export interface DbInvite {
   respondedAt: string | null;
 }
 
+export interface DbItem {
+  id: string;
+  householdId: string;
+  name: string;
+  category: string;
+  priority: string;
+  status: string;
+  quantity: number;
+  plannedPrice: number;
+  paidPrice: number | null;
+  store: string;
+  link: string;
+  addedBy: string;
+  notes: string;
+  isFavorite: boolean;
+  isWishlist: boolean;
+  image: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DbActivity {
+  id: string;
+  householdId: string;
+  userName: string;
+  action: string;
+  itemName: string;
+  createdAt: string;
+}
+
 const normEmail = (email: string) => email.trim().toLowerCase();
 
 function toUser(row: any): DbUser {
@@ -59,6 +90,41 @@ function toInvite(row: any): DbInvite {
     status: row.status,
     createdAt: row.created_at,
     respondedAt: row.responded_at,
+  };
+}
+
+function toItem(row: any): DbItem {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    category: row.category,
+    priority: row.priority,
+    status: row.status,
+    quantity: row.quantity,
+    plannedPrice: Number(row.planned_price),
+    paidPrice: row.paid_price != null ? Number(row.paid_price) : null,
+    store: row.store,
+    link: row.link,
+    addedBy: row.added_by,
+    notes: row.notes,
+    isFavorite: row.is_favorite,
+    isWishlist: row.is_wishlist,
+    image: row.image,
+    description: row.description,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toActivity(row: any): DbActivity {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    userName: row.user_name,
+    action: row.action,
+    itemName: row.item_name,
+    createdAt: row.created_at,
   };
 }
 
@@ -148,4 +214,81 @@ export async function resolveInvite(
   }
 
   return { ok: true };
+}
+
+export interface NewItemInput {
+  householdId: string;
+  addedBy: string;
+  name: string;
+  category: string;
+  priority: string;
+  quantity: number;
+  plannedPrice: number;
+  store: string;
+  link: string;
+  notes: string;
+  isWishlist: boolean;
+  image: string;
+  description: string;
+}
+
+export async function getItemsForHousehold(householdId: string): Promise<DbItem[]> {
+  const rows = await sql`select * from items where household_id = ${householdId} order by created_at desc`;
+  return rows.map(toItem);
+}
+
+export async function getItemById(id: string): Promise<DbItem | null> {
+  const rows = await sql`select * from items where id = ${id}`;
+  return rows[0] ? toItem(rows[0]) : null;
+}
+
+export async function createItem(input: NewItemInput): Promise<DbItem> {
+  const id = randomUUID();
+  const rows = await sql`
+    insert into items (
+      id, household_id, name, category, priority, quantity, planned_price,
+      store, link, added_by, notes, is_wishlist, image, description
+    )
+    values (
+      ${id}, ${input.householdId}, ${input.name}, ${input.category}, ${input.priority}, ${input.quantity},
+      ${input.plannedPrice}, ${input.store}, ${input.link}, ${input.addedBy}, ${input.notes},
+      ${input.isWishlist}, ${input.image}, ${input.description}
+    )
+    returning *
+  `;
+  return toItem(rows[0]);
+}
+
+export async function toggleItemFavorite(id: string): Promise<DbItem> {
+  const rows = await sql`update items set is_favorite = not is_favorite, updated_at = now() where id = ${id} returning *`;
+  return toItem(rows[0]);
+}
+
+export async function setItemStatus(id: string, status: string): Promise<DbItem> {
+  const rows = await sql`update items set status = ${status}, updated_at = now() where id = ${id} returning *`;
+  return toItem(rows[0]);
+}
+
+export async function setItemPaidPrice(id: string, paidPrice: number | null): Promise<DbItem> {
+  const rows = await sql`update items set paid_price = ${paidPrice}, updated_at = now() where id = ${id} returning *`;
+  return toItem(rows[0]);
+}
+
+export async function moveItemToShoppingList(id: string): Promise<DbItem> {
+  const rows = await sql`update items set is_wishlist = false, updated_at = now() where id = ${id} returning *`;
+  return toItem(rows[0]);
+}
+
+export async function deleteItem(id: string): Promise<void> {
+  await sql`delete from items where id = ${id}`;
+}
+
+export async function logActivity(householdId: string, userName: string, action: string, itemName: string): Promise<void> {
+  const id = randomUUID();
+  await sql`insert into activities (id, household_id, user_name, action, item_name) values (${id}, ${householdId}, ${userName}, ${action}, ${itemName})`;
+}
+
+export async function getRecentActivities(householdId: string, limit: number): Promise<DbActivity[]> {
+  const rows = await sql`select * from activities where household_id = ${householdId} order by created_at desc limit ${limit}`;
+  return rows.map(toActivity);
 }

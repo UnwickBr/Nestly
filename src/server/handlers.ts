@@ -1,14 +1,24 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   createInvite,
+  createItem,
   createUser,
+  deleteItem,
   findPendingInviteBetween,
   findUserByEmail,
   findUserById,
   getHouseholdMembers,
+  getItemById,
+  getItemsForHousehold,
   getReceivedInvites,
+  getRecentActivities,
   getSentInvites,
+  logActivity,
+  moveItemToShoppingList,
   resolveInvite,
+  setItemStatus,
+  toggleItemFavorite,
+  type DbItem,
 } from './db.js';
 import { clearSessionCookieHeader, getSessionUserId, hashPassword, sessionCookieHeader, verifyPassword } from './auth.js';
 
@@ -152,3 +162,99 @@ async function handleInviteResolve(
 
 export const handleInviteAccept = (req: IncomingMessage, res: ServerResponse) => handleInviteResolve(req, res, 'accepted');
 export const handleInviteDecline = (req: IncomingMessage, res: ServerResponse) => handleInviteResolve(req, res, 'declined');
+
+function publicItem(item: DbItem) {
+  const { householdId, ...rest } = item;
+  return rest;
+}
+
+export async function handleItemsList(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const items = await getItemsForHousehold(user.householdId);
+  sendJson(res, 200, { items: items.map(publicItem) });
+}
+
+export async function handleItemCreate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = await requireUser(req, res);
+  if (!user) return;
+
+  const body = await readJsonBody(req);
+  const name = String(body.name ?? '').trim();
+  const category = String(body.category ?? '').trim();
+  if (!name || !category) return sendJson(res, 400, { error: 'Nome e categoria são obrigatórios.' });
+
+  const item = await createItem({
+    householdId: user.householdId,
+    addedBy: user.name,
+    name,
+    category,
+    priority: String(body.priority ?? 'Média'),
+    quantity: Number(body.quantity) > 0 ? Number(body.quantity) : 1,
+    plannedPrice: Number(body.plannedPrice) || 0,
+    store: String(body.store ?? ''),
+    link: String(body.link ?? ''),
+    notes: String(body.notes ?? ''),
+    isWishlist: Boolean(body.isWishlist),
+    image: String(body.image ?? ''),
+    description: String(body.description ?? ''),
+  });
+  await logActivity(user.householdId, user.name, 'adicionou', item.name);
+  sendJson(res, 200, { item: publicItem(item) });
+}
+
+async function requireHouseholdItem(req: IncomingMessage, res: ServerResponse, id: string) {
+  const user = await requireUser(req, res);
+  if (!user) return null;
+  const item = await getItemById(id);
+  if (!item || item.householdId !== user.householdId) {
+    sendJson(res, 404, { error: 'Item não encontrado.' });
+    return null;
+  }
+  return { user, item };
+}
+
+export async function handleItemToggleFavorite(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readJsonBody(req);
+  const ctx = await requireHouseholdItem(req, res, String(body.id ?? ''));
+  if (!ctx) return;
+  const updated = await toggleItemFavorite(ctx.item.id);
+  sendJson(res, 200, { item: publicItem(updated) });
+}
+
+export async function handleItemSetStatus(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readJsonBody(req);
+  const status = String(body.status ?? '');
+  if (!status) return sendJson(res, 400, { error: 'Status é obrigatório.' });
+  const ctx = await requireHouseholdItem(req, res, String(body.id ?? ''));
+  if (!ctx) return;
+  const updated = await setItemStatus(ctx.item.id, status);
+  await logActivity(ctx.user.householdId, ctx.user.name, `marcou como ${status}`, ctx.item.name);
+  sendJson(res, 200, { item: publicItem(updated) });
+}
+
+export async function handleItemMoveToList(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readJsonBody(req);
+  const ctx = await requireHouseholdItem(req, res, String(body.id ?? ''));
+  if (!ctx) return;
+  const updated = await moveItemToShoppingList(ctx.item.id);
+  await logActivity(ctx.user.householdId, ctx.user.name, 'moveu da lista de desejos para a lista de compras', ctx.item.name);
+  sendJson(res, 200, { item: publicItem(updated) });
+}
+
+export async function handleItemDelete(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = await readJsonBody(req);
+  const ctx = await requireHouseholdItem(req, res, String(body.id ?? ''));
+  if (!ctx) return;
+  await deleteItem(ctx.item.id);
+  sendJson(res, 200, { ok: true });
+}
+
+export async function handleActivitiesList(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const activities = await getRecentActivities(user.householdId, 20);
+  sendJson(res, 200, {
+    activities: activities.map(a => ({ id: a.id, user: a.userName, action: a.action, item: a.itemName, createdAt: a.createdAt })),
+  });
+}
