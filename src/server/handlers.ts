@@ -279,6 +279,39 @@ function extractProductImage(html: string, baseUrl: string): string | null {
   return null;
 }
 
+// Plain "browser-like" and generic-bot User-Agents get redirected to a
+// captcha/verification page on some marketplaces (seen on MercadoLivre).
+// Link-preview crawlers (WhatsApp, Facebook) are allowlisted instead,
+// since blocking those would break chat link previews — the same public
+// og:image tag they read is all we want here. Try a few, first one that
+// yields an image wins.
+const PRODUCT_FETCH_USER_AGENTS = [
+  'WhatsApp/2.23.20.0',
+  'facebookexternalhit/1.1',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+];
+
+async function tryFetchProductImage(url: string, userAgent: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': userAgent, Accept: 'text/html' },
+    });
+    if (!response.ok) return null;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('text/html')) return null;
+    const html = await response.text();
+    return extractProductImage(html, response.url || url);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function handleFetchProductImage(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const user = await requireUser(req, res);
   if (!user) return;
@@ -287,28 +320,9 @@ export async function handleFetchProductImage(req: IncomingMessage, res: ServerR
   const url = String(body.url ?? '').trim();
   if (!/^https?:\/\//i.test(url)) return sendJson(res, 400, { error: 'URL inválida.' });
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; NestlyBot/1.0; +https://nestlyhome.vercel.app)',
-        Accept: 'text/html',
-      },
-    });
-    clearTimeout(timeout);
-
-    if (!response.ok) return sendJson(res, 200, { image: null });
-
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html')) return sendJson(res, 200, { image: null });
-
-    const html = await response.text();
-    const image = extractProductImage(html, response.url || url);
-    sendJson(res, 200, { image });
-  } catch {
-    sendJson(res, 200, { image: null });
+  for (const userAgent of PRODUCT_FETCH_USER_AGENTS) {
+    const image = await tryFetchProductImage(url, userAgent);
+    if (image) return sendJson(res, 200, { image });
   }
+  sendJson(res, 200, { image: null });
 }
