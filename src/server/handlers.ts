@@ -300,21 +300,17 @@ async function tryFetchProductImage(url: string, userAgent: string): Promise<str
       redirect: 'follow',
       headers: { 'User-Agent': userAgent, Accept: 'text/html' },
     });
-    if (!response.ok) {
-      console.log('[fetch-product-image]', userAgent.slice(0, 20), 'not ok, status=', response.status, 'finalUrl=', response.url);
-      return null;
-    }
+    if (!response.ok) return null;
     const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html')) {
-      console.log('[fetch-product-image]', userAgent.slice(0, 20), 'bad content-type=', contentType);
-      return null;
-    }
+    if (!contentType.includes('text/html')) return null;
     const html = await response.text();
     const image = extractProductImage(html, response.url || url);
-    console.log('[fetch-product-image]', userAgent.slice(0, 20), 'status=', response.status, 'finalUrl=', response.url, 'htmlLen=', html.length, 'image=', image);
+    if (!image) {
+      console.log('[fetch-product-image] no og:image, finalUrl=', response.url);
+    }
     return image;
   } catch (err) {
-    console.log('[fetch-product-image]', userAgent.slice(0, 20), 'threw:', String(err));
+    console.log('[fetch-product-image] fetch failed:', String(err));
     return null;
   } finally {
     clearTimeout(timeout);
