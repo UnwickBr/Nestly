@@ -1,15 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 
-// Local dev persistence: a JSON file under .data/. This keeps the auth +
-// invite flow fully working today (across tabs/devices on the same LAN,
-// since the Vite dev server binds 0.0.0.0) without requiring a database.
+// Production + local dev both talk to the same NeonDB Postgres instance
+// over HTTP (works in Vercel serverless functions and in a plain Node
+// process, e.g. the Vite dev server). Run sql/schema.sql once against
+// your database before using this.
 //
-// To move to production on Vercel + NeonDB later, swap the body of every
-// function below for the equivalent SQL query against Postgres — the
-// call sites (src/server/handlers.ts) only depend on this async function
-// signature, not on the storage mechanism.
+// Lazily constructed (instead of at module load) because vite.config.ts
+// imports this module before it has finished loading .env.local into
+// process.env — by the time a query actually runs, DATABASE_URL is set.
+let _sql: NeonQueryFunction<false, false> | null = null;
+function sql(strings: TemplateStringsArray, ...values: unknown[]) {
+  if (!_sql) {
+    if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set.');
+    _sql = neon(process.env.DATABASE_URL);
+  }
+  return _sql(strings, ...values);
+}
 
 export interface DbUser {
   id: string;
@@ -30,118 +37,93 @@ export interface DbInvite {
   respondedAt: string | null;
 }
 
-interface DbShape {
-  users: DbUser[];
-  households: { id: string; createdAt: string }[];
-  invites: DbInvite[];
-}
-
-const DB_PATH = path.resolve(process.cwd(), '.data', 'db.json');
-
-function emptyDb(): DbShape {
-  return { users: [], households: [], invites: [] };
-}
-
-async function readDb(): Promise<DbShape> {
-  try {
-    const raw = await readFile(DB_PATH, 'utf-8');
-    return JSON.parse(raw) as DbShape;
-  } catch {
-    return emptyDb();
-  }
-}
-
-async function writeDb(data: DbShape): Promise<void> {
-  await mkdir(path.dirname(DB_PATH), { recursive: true });
-  await writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-// Serialize all writes so concurrent requests don't clobber each other.
-let queue: Promise<unknown> = Promise.resolve();
-function withDb<T>(fn: (db: DbShape) => T | Promise<T>): Promise<T> {
-  const run = queue.then(async () => {
-    const db = await readDb();
-    const result = await fn(db);
-    await writeDb(db);
-    return result;
-  });
-  queue = run.catch(() => {});
-  return run;
-}
-
 const normEmail = (email: string) => email.trim().toLowerCase();
 
+function toUser(row: any): DbUser {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    passwordHash: row.password_hash,
+    householdId: row.household_id,
+    createdAt: row.created_at,
+  };
+}
+
+function toInvite(row: any): DbInvite {
+  return {
+    id: row.id,
+    fromUserId: row.from_user_id,
+    fromHouseholdId: row.from_household_id,
+    toEmail: row.to_email,
+    status: row.status,
+    createdAt: row.created_at,
+    respondedAt: row.responded_at,
+  };
+}
+
 export async function findUserByEmail(email: string): Promise<DbUser | null> {
-  const db = await readDb();
-  return db.users.find(u => u.email === normEmail(email)) ?? null;
+  const rows = await sql`select * from users where email = ${normEmail(email)}`;
+  return rows[0] ? toUser(rows[0]) : null;
 }
 
 export async function findUserById(id: string): Promise<DbUser | null> {
-  const db = await readDb();
-  return db.users.find(u => u.id === id) ?? null;
+  const rows = await sql`select * from users where id = ${id}`;
+  return rows[0] ? toUser(rows[0]) : null;
 }
 
 export async function createUser(input: { name: string; email: string; passwordHash: string }): Promise<DbUser> {
-  return withDb(db => {
-    const now = new Date().toISOString();
-    const householdId = randomUUID();
-    db.households.push({ id: householdId, createdAt: now });
-    const user: DbUser = {
-      id: randomUUID(),
-      name: input.name.trim(),
-      email: normEmail(input.email),
-      passwordHash: input.passwordHash,
-      householdId,
-      createdAt: now,
-    };
-    db.users.push(user);
-    return user;
-  });
+  const householdId = randomUUID();
+  await sql`insert into households (id) values (${householdId})`;
+
+  const userId = randomUUID();
+  const rows = await sql`
+    insert into users (id, name, email, password_hash, household_id)
+    values (${userId}, ${input.name.trim()}, ${normEmail(input.email)}, ${input.passwordHash}, ${householdId})
+    returning *
+  `;
+  return toUser(rows[0]);
 }
 
 export async function getHouseholdMembers(householdId: string, excludeUserId?: string): Promise<DbUser[]> {
-  const db = await readDb();
-  return db.users.filter(u => u.householdId === householdId && u.id !== excludeUserId);
+  const rows = excludeUserId
+    ? await sql`select * from users where household_id = ${householdId} and id != ${excludeUserId}`
+    : await sql`select * from users where household_id = ${householdId}`;
+  return rows.map(toUser);
 }
 
 export async function findPendingInviteBetween(fromHouseholdId: string, toEmail: string): Promise<DbInvite | null> {
-  const db = await readDb();
-  return (
-    db.invites.find(
-      i => i.fromHouseholdId === fromHouseholdId && i.toEmail === normEmail(toEmail) && i.status === 'pending',
-    ) ?? null
-  );
+  const rows = await sql`
+    select * from invites
+    where from_household_id = ${fromHouseholdId} and to_email = ${normEmail(toEmail)} and status = 'pending'
+    limit 1
+  `;
+  return rows[0] ? toInvite(rows[0]) : null;
 }
 
 export async function createInvite(input: { fromUserId: string; fromHouseholdId: string; toEmail: string }): Promise<DbInvite> {
-  return withDb(db => {
-    const invite: DbInvite = {
-      id: randomUUID(),
-      fromUserId: input.fromUserId,
-      fromHouseholdId: input.fromHouseholdId,
-      toEmail: normEmail(input.toEmail),
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      respondedAt: null,
-    };
-    db.invites.push(invite);
-    return invite;
-  });
+  const id = randomUUID();
+  const rows = await sql`
+    insert into invites (id, from_user_id, from_household_id, to_email, status)
+    values (${id}, ${input.fromUserId}, ${input.fromHouseholdId}, ${normEmail(input.toEmail)}, 'pending')
+    returning *
+  `;
+  return toInvite(rows[0]);
 }
 
 export async function getReceivedInvites(email: string): Promise<DbInvite[]> {
-  const db = await readDb();
-  return db.invites.filter(i => i.toEmail === normEmail(email) && i.status === 'pending');
+  const rows = await sql`select * from invites where to_email = ${normEmail(email)} and status = 'pending'`;
+  return rows.map(toInvite);
 }
 
 export async function getSentInvites(userId: string): Promise<DbInvite[]> {
-  const db = await readDb();
-  return db.invites.filter(i => i.fromUserId === userId && i.status === 'pending');
+  const rows = await sql`select * from invites where from_user_id = ${userId} and status = 'pending'`;
+  return rows.map(toInvite);
 }
 
 export async function getInviteById(id: string): Promise<DbInvite | null> {
-  const db = await readDb();
-  return db.invites.find(i => i.id === id) ?? null;
+  const rows = await sql`select * from invites where id = ${id}`;
+  return rows[0] ? toInvite(rows[0]) : null;
 }
 
 export async function resolveInvite(
@@ -149,22 +131,21 @@ export async function resolveInvite(
   acceptingUserId: string,
   outcome: 'accepted' | 'declined',
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  return withDb(db => {
-    const invite = db.invites.find(i => i.id === inviteId);
-    if (!invite || invite.status !== 'pending') return { ok: false, error: 'Convite não encontrado ou já respondido.' };
+  const inviteRows = await sql`select * from invites where id = ${inviteId}`;
+  const invite = inviteRows[0] ? toInvite(inviteRows[0]) : null;
+  if (!invite || invite.status !== 'pending') return { ok: false, error: 'Convite não encontrado ou já respondido.' };
 
-    const acceptingUser = db.users.find(u => u.id === acceptingUserId);
-    if (!acceptingUser || acceptingUser.email !== invite.toEmail) {
-      return { ok: false, error: 'Este convite não é para esta conta.' };
-    }
+  const userRows = await sql`select * from users where id = ${acceptingUserId}`;
+  const acceptingUser = userRows[0] ? toUser(userRows[0]) : null;
+  if (!acceptingUser || acceptingUser.email !== invite.toEmail) {
+    return { ok: false, error: 'Este convite não é para esta conta.' };
+  }
 
-    invite.status = outcome;
-    invite.respondedAt = new Date().toISOString();
+  await sql`update invites set status = ${outcome}, responded_at = now() where id = ${inviteId}`;
 
-    if (outcome === 'accepted') {
-      acceptingUser.householdId = invite.fromHouseholdId;
-    }
+  if (outcome === 'accepted') {
+    await sql`update users set household_id = ${invite.fromHouseholdId} where id = ${acceptingUserId}`;
+  }
 
-    return { ok: true };
-  });
+  return { ok: true };
 }

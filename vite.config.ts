@@ -1,4 +1,4 @@
-import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
@@ -16,6 +16,12 @@ import {
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  // .env.local (DATABASE_URL, SESSION_SECRET, ...) isn't loaded into
+  // process.env by default — only Vite's own import.meta.env gets it, and
+  // only VITE_-prefixed keys. Our server routes read process.env directly,
+  // so load everything (empty prefix) into the real Node process env too.
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
+
   // .figma/make/deploy-preview passes `--mode development` for cached-preview builds.
   const emitSourcemaps = mode === 'development'
 
@@ -366,13 +372,11 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
 }
 
 /**
- * Dev-only backend for auth + household invites, backed by the local
- * JSON store in src/server/db.ts. `apply: 'serve'` keeps it out of
- * `vite build` output — this is not how the API is served in production.
- * Moving to Vercel + NeonDB later means porting these routes to
- * `/api/*.ts` serverless functions and swapping src/server/db.ts for
- * real Postgres queries; the handler signatures already match Vercel's
- * (req, res) shape, so the route logic itself does not need to change.
+ * Dev-only backend for auth + household invites. Same handlers (and the
+ * same NeonDB Postgres database, via DATABASE_URL) that back the
+ * `/api/*.ts` Vercel serverless functions used in production — this
+ * plugin only exists so `pnpm dev` has working API routes without
+ * running `vercel dev`. `apply: 'serve'` keeps it out of `vite build`.
  */
 function localApiPlugin(): Plugin {
   const routes: Record<string, (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>> = {
