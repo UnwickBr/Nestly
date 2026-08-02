@@ -69,7 +69,7 @@ const ItemDetail: FC<ItemDetailProps> = ({ item, darkMode, onClose, onEdit }) =>
     if (!text || sending) return;
     setSending(true);
     try {
-      const res = await fetch('/api/items/comments/add', {
+      const res = await fetch('/api/items/comments', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

@@ -406,7 +406,7 @@ function localApiPlugin(): Plugin {
     'POST /api/items/move-to-list': handleItemMoveToList,
     'POST /api/items/delete': handleItemDelete,
     'GET /api/items/comments': handleCommentsList,
-    'POST /api/items/comments/add': handleCommentAdd,
+    'POST /api/items/comments': handleCommentAdd,
     'GET /api/activities': handleActivitiesList,
     'POST /api/fetch-product-image': handleFetchProductImage,
   }
