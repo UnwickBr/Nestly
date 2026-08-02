@@ -300,12 +300,21 @@ async function tryFetchProductImage(url: string, userAgent: string): Promise<str
       redirect: 'follow',
       headers: { 'User-Agent': userAgent, Accept: 'text/html' },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.log('[fetch-product-image]', userAgent.slice(0, 20), 'not ok, status=', response.status, 'finalUrl=', response.url);
+      return null;
+    }
     const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html')) return null;
+    if (!contentType.includes('text/html')) {
+      console.log('[fetch-product-image]', userAgent.slice(0, 20), 'bad content-type=', contentType);
+      return null;
+    }
     const html = await response.text();
-    return extractProductImage(html, response.url || url);
-  } catch {
+    const image = extractProductImage(html, response.url || url);
+    console.log('[fetch-product-image]', userAgent.slice(0, 20), 'status=', response.status, 'finalUrl=', response.url, 'htmlLen=', html.length, 'image=', image);
+    return image;
+  } catch (err) {
+    console.log('[fetch-product-image]', userAgent.slice(0, 20), 'threw:', String(err));
     return null;
   } finally {
     clearTimeout(timeout);
