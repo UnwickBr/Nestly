@@ -258,3 +258,57 @@ export async function handleActivitiesList(req: IncomingMessage, res: ServerResp
     activities: activities.map(a => ({ id: a.id, user: a.userName, action: a.action, item: a.itemName, createdAt: a.createdAt })),
   });
 }
+
+function extractProductImage(html: string, baseUrl: string): string | null {
+  const patterns = [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
+  ];
+  for (const re of patterns) {
+    const match = html.match(re);
+    if (match?.[1]) {
+      try {
+        return new URL(match[1].replace(/&amp;/g, '&'), baseUrl).toString();
+      } catch {
+        return match[1];
+      }
+    }
+  }
+  return null;
+}
+
+export async function handleFetchProductImage(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = await requireUser(req, res);
+  if (!user) return;
+
+  const body = await readJsonBody(req);
+  const url = String(body.url ?? '').trim();
+  if (!/^https?:\/\//i.test(url)) return sendJson(res, 400, { error: 'URL inválida.' });
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; NestlyBot/1.0; +https://nestlyhome.vercel.app)',
+        Accept: 'text/html',
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) return sendJson(res, 200, { image: null });
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('text/html')) return sendJson(res, 200, { image: null });
+
+    const html = await response.text();
+    const image = extractProductImage(html, response.url || url);
+    sendJson(res, 200, { image });
+  } catch {
+    sendJson(res, 200, { image: null });
+  }
+}

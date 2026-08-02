@@ -6,6 +6,7 @@ import path from 'node:path'
 import siteConfiguration from './.figma/make/site.json'
 import {
   handleActivitiesList,
+  handleFetchProductImage,
   handleInviteAccept,
   handleInviteDecline,
   handleInviteSend,
@@ -401,6 +402,7 @@ function localApiPlugin(): Plugin {
     'POST /api/items/move-to-list': handleItemMoveToList,
     'POST /api/items/delete': handleItemDelete,
     'GET /api/activities': handleActivitiesList,
+    'POST /api/fetch-product-image': handleFetchProductImage,
   }
 
   return {
