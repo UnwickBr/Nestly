@@ -1,5 +1,5 @@
 import { type FC } from 'react';
-import { House, ShoppingCart, Heart, BarChart3, User, X, Home } from 'lucide-react';
+import { House, ShoppingCart, Heart, BarChart3, User, X, Home, HelpCircle } from 'lucide-react';
 import type { AuthUser } from '../context/AuthContext';
 import { useItems } from '../context/ItemsContext';
 
@@ -16,11 +16,11 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { id: 'dashboard' as Page, label: 'Dashboard', icon: House },
-  { id: 'shopping' as Page, label: 'Lista de Compras', icon: ShoppingCart },
-  { id: 'wishlist' as Page, label: 'Lista de Desejos', icon: Heart },
-  { id: 'stats' as Page, label: 'Estatísticas', icon: BarChart3 },
-  { id: 'profile' as Page, label: 'Perfil', icon: User },
+  { id: 'dashboard' as Page, label: 'Dashboard', icon: House, help: 'Visão geral do progresso e dos gastos da casa.' },
+  { id: 'shopping' as Page, label: 'Lista de Compras', icon: ShoppingCart, help: 'Itens que vocês pretendem comprar. Entram no orçamento e têm acompanhamento de status (pesquisando, comprado, entregue...).' },
+  { id: 'wishlist' as Page, label: 'Lista de Desejos', icon: Heart, help: 'Itens que vocês sonham ter, sem compromisso. Não entram no cálculo do orçamento até serem movidos para a Lista de Compras.' },
+  { id: 'stats' as Page, label: 'Estatísticas', icon: BarChart3, help: 'Gráficos de gastos por mês e categoria, e itens por status.' },
+  { id: 'profile' as Page, label: 'Perfil', icon: User, help: 'Sua conta, convite do cônjuge e preferências do app.' },
 ];
 
 const PARTNER_COLORS = ['bg-pink-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500'];
@@ -111,7 +111,7 @@ const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOp
 
         {/* Navigation */}
         <nav className="flex-1 px-4 py-4 space-y-1">
-          {navItems.map(({ id, label, icon: Icon }) => {
+          {navItems.map(({ id, label, icon: Icon, help }) => {
             const isActive = currentPage === id;
             return (
               <button
@@ -131,8 +131,28 @@ const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOp
               >
                 <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
                 {label}
+
+                <span
+                  className="relative group/help flex-shrink-0"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <HelpCircle size={13} className={`transition-colors ${darkMode ? 'text-gray-600 hover:text-gray-300' : 'text-gray-300 hover:text-gray-500'}`} />
+                  <span
+                    role="tooltip"
+                    className={`
+                      pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 w-52
+                      rounded-lg border backdrop-blur-xl px-3 py-2 text-xs font-normal leading-relaxed
+                      opacity-0 scale-95 transition-all duration-150 group-hover/help:opacity-100 group-hover/help:scale-100
+                      shadow-xl
+                      ${darkMode ? 'bg-[#16161a]/95 border-white/10 text-gray-300' : 'bg-white/95 border-white/70 text-gray-600'}
+                    `}
+                  >
+                    {help}
+                  </span>
+                </span>
+
                 {isActive && (
-                  <span className={`ml-auto w-1.5 h-1.5 rounded-full ${darkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />
+                  <span className={`ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0 ${darkMode ? 'bg-blue-400' : 'bg-blue-600'}`} />
                 )}
               </button>
             );
