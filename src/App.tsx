@@ -7,11 +7,39 @@ import ItemDetail from './pages/ItemDetail';
 import Wishlist from './pages/Wishlist';
 import Statistics from './pages/Statistics';
 import Profile from './pages/Profile';
+import Auth from './pages/Auth';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { type Item } from './data/mockData';
 
 type Page = 'dashboard' | 'shopping' | 'wishlist' | 'stats' | 'profile';
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { status } = useAuth();
+  const bg = 'glass-shell-light';
+
+  if (status === 'loading') {
+    return (
+      <div className={`min-h-screen w-full flex items-center justify-center ${bg}`}>
+        <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (status === 'guest') return <Auth />;
+
+  return <AppShell />;
+}
+
+function AppShell() {
+  const { user, partner, logout } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -28,6 +56,8 @@ export default function App() {
         darkMode={darkMode}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        user={user}
+        partner={partner}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -37,6 +67,7 @@ export default function App() {
           onToggleDark={() => setDarkMode(!darkMode)}
           onOpenMobile={() => setMobileOpen(true)}
           onAddItem={() => setShowAddModal(true)}
+          onNavigate={setCurrentPage}
         />
 
         <main className="flex-1 overflow-y-auto">
@@ -53,7 +84,7 @@ export default function App() {
             <Statistics darkMode={darkMode} />
           )}
           {currentPage === 'profile' && (
-            <Profile darkMode={darkMode} onToggleDark={() => setDarkMode(!darkMode)} />
+            <Profile darkMode={darkMode} onToggleDark={() => setDarkMode(!darkMode)} onLogout={logout} />
           )}
         </main>
       </div>

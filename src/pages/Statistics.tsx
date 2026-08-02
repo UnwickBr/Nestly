@@ -32,7 +32,7 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
   const totalSpent = bought.reduce((s, i) => s + (i.paidPrice ?? 0) * i.quantity, 0);
   const totalPlanned = items.reduce((s, i) => s + i.plannedPrice * i.quantity, 0);
   const totalSavings = bought.reduce((s, i) => s + (i.paidPrice != null ? (i.plannedPrice - i.paidPrice) * i.quantity : 0), 0);
-  const progress = Math.round((bought.length / items.length) * 100);
+  const progress = items.length > 0 ? Math.round((bought.length / items.length) * 100) : 0;
 
   const categoryData = CATEGORIES.map(cat => {
     const catItems = bought.filter(i => i.category === cat.name);
@@ -158,6 +158,9 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
       {/* Most expensive */}
       <div className={card}>
         <h3 className={`text-sm font-semibold mb-4 ${text}`}>Produtos Mais Caros</h3>
+        {mostExpensive.length === 0 ? (
+          <p className={`text-sm text-center py-6 ${muted}`}>Nenhum produto comprado ainda.</p>
+        ) : (
         <div className="space-y-3">
           {mostExpensive.map((item, i) => (
             <div key={item.id} className="flex items-center gap-3">
@@ -173,6 +176,7 @@ const Statistics: FC<StatsProps> = ({ darkMode }) => {
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import { type FC } from 'react';
 import { House, ShoppingCart, Heart, BarChart3, User, X, Home } from 'lucide-react';
+import { mockItems } from '../data/mockData';
+import type { AuthUser } from '../context/AuthContext';
 
 type Page = 'dashboard' | 'shopping' | 'wishlist' | 'stats' | 'profile';
 
@@ -9,6 +11,8 @@ interface SidebarProps {
   darkMode: boolean;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  user: AuthUser | null;
+  partner: AuthUser | null;
 }
 
 const navItems = [
@@ -19,7 +23,20 @@ const navItems = [
   { id: 'profile' as Page, label: 'Perfil', icon: User },
 ];
 
-const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOpen, onCloseMobile }) => {
+const PARTNER_COLORS = ['bg-pink-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500'];
+function colorForId(id: string): string {
+  const sum = [...id].reduce((s, c) => s + c.charCodeAt(0), 0);
+  return PARTNER_COLORS[sum % PARTNER_COLORS.length];
+}
+
+const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOpen, onCloseMobile, user, partner }) => {
+  const nonWishlist = mockItems.filter(i => !i.isWishlist);
+  const doneCount = nonWishlist.filter(i => ['Comprado', 'Entregue', 'Montado'].includes(i.status)).length;
+  const totalCount = nonWishlist.length;
+  const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  const selfInitial = user?.name.trim().charAt(0).toUpperCase() || '?';
+  const partnerInitial = partner?.name.trim().charAt(0).toUpperCase() || '';
   const sidebarBase = `flex flex-col h-full border-r backdrop-blur-2xl transition-all duration-300`;
   const sidebarColor = darkMode
     ? 'bg-white/5 border-white/10'
@@ -72,15 +89,21 @@ const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOp
           <div className="flex items-center gap-3 px-2">
             <div className="flex -space-x-2">
               <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white dark:border-gray-900 flex items-center justify-center text-white text-xs font-semibold">
-                V
+                {selfInitial}
               </div>
-              <div className="w-8 h-8 rounded-full bg-pink-500 border-2 border-white dark:border-gray-900 flex items-center justify-center text-white text-xs font-semibold">
-                A
-              </div>
+              {partner && (
+                <div className={`w-8 h-8 rounded-full ${colorForId(partner.id)} border-2 border-white dark:border-gray-900 flex items-center justify-center text-white text-xs font-semibold`}>
+                  {partnerInitial}
+                </div>
+              )}
             </div>
             <div>
-              <p className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>Você & Ana</p>
-              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Acesso compartilhado</p>
+              <p className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                Você{partner ? ` & ${partner.name}` : ''}
+              </p>
+              <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                {partner ? 'Acesso compartilhado' : 'Convide seu cônjuge no Perfil'}
+              </p>
             </div>
           </div>
         </div>
@@ -119,12 +142,12 @@ const Sidebar: FC<SidebarProps> = ({ currentPage, onNavigate, darkMode, mobileOp
         <div className={`p-4 m-4 rounded-xl border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-white/40 border-white/60'}`}>
           <div className="flex items-center justify-between mb-2">
             <p className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Progresso da Casa</p>
-            <span className={`text-xs font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>58%</span>
+            <span className={`text-xs font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>{progress}%</span>
           </div>
           <div className={`w-full h-1.5 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-            <div className="h-1.5 rounded-full bg-blue-500 transition-all duration-700" style={{ width: '58%' }} />
+            <div className="h-1.5 rounded-full bg-blue-500 transition-all duration-700" style={{ width: `${progress}%` }} />
           </div>
-          <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>7 de 12 itens prontos</p>
+          <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{doneCount} de {totalCount} itens prontos</p>
         </div>
       </aside>
     </>

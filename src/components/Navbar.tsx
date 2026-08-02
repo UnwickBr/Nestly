@@ -1,5 +1,6 @@
 import { type FC } from 'react';
 import { Menu, Sun, Moon, Bell, Plus } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 type Page = 'dashboard' | 'shopping' | 'wishlist' | 'stats' | 'profile';
 
@@ -17,9 +18,12 @@ interface NavbarProps {
   onToggleDark: () => void;
   onOpenMobile: () => void;
   onAddItem: () => void;
+  onNavigate: (page: Page) => void;
 }
 
-const Navbar: FC<NavbarProps> = ({ currentPage, darkMode, onToggleDark, onOpenMobile, onAddItem }) => {
+const Navbar: FC<NavbarProps> = ({ currentPage, darkMode, onToggleDark, onOpenMobile, onAddItem, onNavigate }) => {
+  const { receivedInvites } = useAuth();
+  const hasInvites = receivedInvites.length > 0;
   return (
     <header className={`h-16 flex items-center justify-between px-4 lg:px-8 border-b backdrop-blur-2xl sticky top-0 z-30 transition-colors duration-300 ${darkMode ? 'bg-[#08080b]/40 border-white/10' : 'bg-white/40 border-white/60'}`}>
       <div className="flex items-center gap-3">
@@ -41,9 +45,12 @@ const Navbar: FC<NavbarProps> = ({ currentPage, darkMode, onToggleDark, onOpenMo
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
-        <button className={`relative p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}>
+        <button
+          onClick={() => onNavigate('profile')}
+          className={`relative p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-white/40 text-gray-500'}`}
+        >
           <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500" />
+          {hasInvites && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />}
         </button>
         <button
           onClick={onAddItem}

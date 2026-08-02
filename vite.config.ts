@@ -4,6 +4,15 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
+import {
+  handleInviteAccept,
+  handleInviteDecline,
+  handleInviteSend,
+  handleLogin,
+  handleLogout,
+  handleMe,
+  handleRegister,
+} from './src/server/handlers'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -23,6 +32,7 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
+      localApiPlugin(),
     ],
     resolve: {
       alias: {
@@ -349,6 +359,54 @@ function figmaMakeKitPlugin(options: { storiesGlob: string | string[] }): Plugin
           res.end(await server.transformIndexHtml(url, HTML_BOOTSTRAP))
         } catch (err) {
           next(err as Error)
+        }
+      })
+    },
+  }
+}
+
+/**
+ * Dev-only backend for auth + household invites, backed by the local
+ * JSON store in src/server/db.ts. `apply: 'serve'` keeps it out of
+ * `vite build` output — this is not how the API is served in production.
+ * Moving to Vercel + NeonDB later means porting these routes to
+ * `/api/*.ts` serverless functions and swapping src/server/db.ts for
+ * real Postgres queries; the handler signatures already match Vercel's
+ * (req, res) shape, so the route logic itself does not need to change.
+ */
+function localApiPlugin(): Plugin {
+  const routes: Record<string, (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => Promise<void>> = {
+    'POST /api/auth/register': handleRegister,
+    'POST /api/auth/login': handleLogin,
+    'POST /api/auth/logout': handleLogout,
+    'GET /api/auth/me': handleMe,
+    'POST /api/invites/send': handleInviteSend,
+    'POST /api/invites/accept': handleInviteAccept,
+    'POST /api/invites/decline': handleInviteDecline,
+  }
+
+  return {
+    name: 'local-api',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = (req.url || '').split('?')[0]
+        if (!url.startsWith('/api/')) return next()
+
+        const handler = routes[`${req.method} ${url}`]
+        if (!handler) {
+          res.statusCode = 404
+          res.end('Not found')
+          return
+        }
+
+        try {
+          await handler(req, res)
+        } catch (err) {
+          console.error('[local-api]', err)
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'Erro interno.' }))
         }
       })
     },

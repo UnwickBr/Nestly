@@ -18,7 +18,7 @@ const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
   const plannedTotal = items.reduce((s, i) => s + i.plannedPrice * i.quantity, 0);
   const spentTotal = items.reduce((s, i) => s + (i.paidPrice ?? 0) * i.quantity, 0);
   const savings = items.reduce((s, i) => s + (i.paidPrice != null ? (i.plannedPrice - i.paidPrice) * i.quantity : 0), 0);
-  const progress = Math.round((boughtItems / totalItems) * 100);
+  const progress = totalItems > 0 ? Math.round((boughtItems / totalItems) * 100) : 0;
 
   const categorySpend = CATEGORIES.map(cat => {
     const catItems = items.filter(i => i.category === cat.name && i.paidPrice != null);
@@ -185,14 +185,17 @@ const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
       {/* Recent Activities */}
       <div className={card}>
         <h3 className={`text-sm font-semibold mb-4 ${text}`}>Atividades Recentes</h3>
+        {mockActivities.length === 0 ? (
+          <p className={`text-sm text-center py-6 ${muted}`}>Nenhuma atividade ainda. Adicione seu primeiro item!</p>
+        ) : (
         <div className="space-y-0.5">
           {mockActivities.map((act, i) => (
             <div
               key={act.id}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${darkMode ? 'hover:bg-white/10' : 'hover:bg-white/40'} ${i < mockActivities.length - 1 ? '' : ''}`}
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 ${act.user === 'Ana' ? 'bg-pink-500' : 'bg-blue-500'}`}>
-                {act.user === 'Ana' ? 'A' : 'V'}
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 bg-blue-500`}>
+                {act.user.trim().charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -204,6 +207,7 @@ const Dashboard: FC<DashboardProps> = ({ darkMode, onNavigate }) => {
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );
