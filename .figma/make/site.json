@@ -1,0 +1,10 @@
+{
+  "description": "Streamline your home buying process with a modern app that helps couples manage purchases, track expenses, and organize essentials for their new home.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
